@@ -4,22 +4,22 @@
 #                                                              #
 #   MACHINE REPORT                                             #
 #   -------------                                              #
-#	                                                           #
-#	-> Last Update:           01/25/2025                       #
+#	                                                       #
+#   -> Last Update:           01/25/2025                       #
 #                                                              #
 #   -> Author:                Pedro Sartori Giorgetti          #
-#	-> Email:                 pedsar@gmail.com                 #
-#	-> Operating System:      Fedora                           #
+#	-> Email:                 pedsar@gmail.com             #
+#	-> Operating System:      Fedora                       #
 #                                                              #
-#	-> Description:                                            #
-#		  This project aims to implement the                   #
-#		content I have learned. The script                     #
-#		generates a machine report, updates                    #
-#		it every five seconds, and includes                    #
-#		the option to send the report to your                  #
-#		email.                                                 #
+#   -> Description:                                            #
+#	This project aims to implement the                     #
+#  	  content I have learned. The script                   #
+#	  generates a machine report, updates                  #
+#	  it every five seconds, and includes                  #
+#	  the option to send the report to your                #
+#	  email.                                               #
 #                                                              #
-#	-> Requirements:                                           #
+#   -> Requirements:                                           #
 #       - Library: lsb_relase                                  #
 #       - Configure SSMTP                                      #
 #                                                              #
