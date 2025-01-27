@@ -383,6 +383,7 @@ clear_And_Wait(){
 	clear
 }
 
+
 while [ 1 ]
 do
 	clear
