@@ -5,7 +5,7 @@
 #   MACHINE REPORT                                             #
 #   -------------                                              #
 #	                                                       #
-#   -> Last Update:           01/25/2025                       #
+#   -> Last Update:           01/27/2025                       #
 #                                                              #
 #   -> Author:                Pedro Sartori Giorgetti          #
 #	-> Email:                 pedsar@gmail.com             #
@@ -67,10 +67,10 @@ get_ram_total(){
     echo "$ram_total"
 }
 
-get_ram_used() {
-    local ram_used=$(free -m | awk '/Mem:/ {print $3}')
-    ram_used=$(convert_mb_to_gb "$ram_used")
-    echo "$ram_used"
+get_ram_usage() {
+    local ram_usage=$(free -m | awk '/Mem:/ {print $3}')
+    ram_usage=$(convert_mb_to_gb "$ram_usage")
+    echo "$ram_usage"
 }
 
 get_kernel_version(){
@@ -161,7 +161,7 @@ get_cpu_temperature(){
 }
 
 get_cpu_temperature_in_celcius(){
-    echo "$(echo "scale=1; $(get_cpu_temperature) /1000" | bc) ºC"
+    echo "$(echo "scale=1; $(get_cpu_temperature) /1000" | bc)"
 }
 
 get_disk_usage_percentage(){
@@ -188,8 +188,8 @@ generate_machine_report(){
         clear 
         echo " - Last Update: $(date '+%y-%m-%d %H:%M:%S')"
         echo " - CPU Usage: $(get_cpu_usage)%"
-        echo " - CPU Temperature: $(get_cpu_temperature_in_celcius)"
-        echo " - Memory Usage: $(get_ram_used) / $(get_ram_total)"
+        echo " - CPU Temperature: $(get_cpu_temperature_in_celcius) ºC"
+        echo " - Memory Usage: $(get_ram_usage) / $(get_ram_total)"
         echo " - Disk Usage: $(get_disk_usage_percentage)"
         echo " - System Uptime: $(get_uptime)"
         echo " - $(get_network_name)"
@@ -200,24 +200,22 @@ generate_machine_report(){
 }
 
 connection_internet_test(){
-    local ping_test=$(ping -c 1 google.com 2>&1)
-	
+    ping -c 1 google.com &> /dev/null
+
     if [ $? -eq 0 ]
     then
-	    local response_time=$(echo "$ping_test" | grep "time=" | awk -F'time=' '{print $2}' | awk '{print $1}')
-	    echo "Ping successful! Response time: ${response_time} ms"
+        echo "Ping successful!"
     else
         echo "Internet connection error"
     fi
 }
 
 is_connected_to_the_internet(){
-    local is_connected=$(connection_internet_test)
-    if [ "$is_connected" = "Internet connection error" ]
-    then
-	    echo "false"
+    if connection_internet_test | grep -q "Internet connection error" 
+     then
+        echo "false"
     else
-	    echo "true"
+        echo "true"
     fi
 }
 
@@ -236,7 +234,7 @@ machine_report(){
 }
 
 create_report_file(){
-    echo -e "MACHINE REPORT\n\n" >> Machine_Report	
+    echo -e "\nMACHINE REPORT\n\n" >> Machine_Report	  
     hardware_information >> Machine_Report
     echo -e "\n\n" >> Machine_Report
     generate_machine_report | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' >> Machine_Report
@@ -247,18 +245,137 @@ request_user_email(){
 	echo "$user_email"
 }
 
-send_mail(){
-	if [ "$(is_connected_to_the_internet)" = "true" ]
+send_email(){
+    local user_email=$1    
+   
+	if [[ "$(is_connected_to_the_internet)" == "true" ]]
     then
 	   create_report_file
-	   local user_email=$(request_user_email)
-	   ssmtp $user_email < Machine_Report
+       clear 
+       echo " Sending an email..."
+       ssmtp $user_email < Machine_Report
 	   press_any_key_to_continue
 	   rm Machine_Report
     else
-	    echo " The device was not connected to the internet!"
+        clear
+	    echo -e "\n The device was not connected to the internet!"
 	    press_any_key_to_continue
     fi
+}
+
+are_all_null(){
+    local parameters=("$@")
+
+    for param in "%{parameters[@]}"
+    do
+        if [[ -n "$ param" ]]
+        then
+            return 1
+        fi
+    done
+    return 0
+}
+
+set_alert_cpu_usage() {
+    local cpu_usage_parameter
+    read -p " - Set the max CPU usage (%) [Default: 80%]: " cpu_usage_parameter
+    cpu_usage_parameter=${cpu_usage_parameter:-80}
+    echo "$cpu_usage_parameter"
+}
+
+set_alert_cpu_temperature(){
+    local cpu_temperature_parameter
+    read -p " - Set the max CPU temperature (ºC) [Default: 50ºC]: " cpu_temperature_parameter
+    cpu_temperature_parameter=${cpu_temperature_parameter:-50}
+    echo "$cpu_temperature_parameter"
+}
+
+set_alert_ram_usage(){
+    local ram_usage_parameter
+    read -p " - Set the max RAM usage (%) [Default: 80%]: " ram_usage_parameter
+    ram_usage_parameter=${ram_usage_parameter:-80}
+    echo "$ram_usage_parameter"
+}
+
+set_alert_disk_usage(){
+    local disk_usage_parameter
+    read -p " - Set the max Disk usage (%) [Default: 80%]: " disk_usage_parameter
+    disk_usage_parameter=${disk_usage_parameter:-80}
+    echo "$disk_usage_parameter"
+}
+
+get_ram_usage_percentage() {
+    usage=$(get_ram_usage | sed 's/ GB//')
+    total=$(get_ram_total | sed 's/ GB//')
+    echo "scale=2; ($usage/$total)*100" | bc
+}
+
+is_over_limit(){
+    local parameter=$1
+    local current_value=$2
+       
+     if [[ $(echo "$current_value >= $parameter" | bc -l) -eq 1 ]]
+     then
+        echo "TRUE"
+     else
+        echo "FALSE"
+     fi
+}
+
+create_alert(){
+    local user_email=$1
+    local message_alert=$2
+    echo -e "\n $message_alert\n" > Machine_Report
+    send_email "$user_email"
+}
+
+system_monitoring(){     
+    local user_email=$(request_user_email)
+    
+    echo -e "\n It's not necessary to input the symbols, just the values!\n If you press 'Enter' without entering a value, the default value will be assigned.\n"    
+
+    local cpu_usage_parameter=$(set_alert_cpu_usage)
+    local cpu_temperature_parameter=$(set_alert_cpu_temperature)
+    local ram_usage_parameter=$(set_alert_ram_usage)
+    local disk_usage_parameter=$(set_alert_disk_usage)
+ 
+    while [ 1 ] 
+    do
+        clear
+        echo -e "\n Monitoring the system..."        
+        if [[ $(is_over_limit "$cpu_usage_parameter" "$(get_cpu_usage)") == "TRUE" ]]
+        then
+            local message_alert="Alert: The CPU usage has exceeded the defined limit!"
+            echo -e "\n $message_alert"
+            create_alert "$user_email" "$message_alert"
+            break
+        fi
+
+        if [[ $(is_over_limit "$cpu_temperature_parameter" "$(get_cpu_temperature_in_celcius)") == "TRUE" ]]
+        then
+            local message_alert="Alert: The CPU temperature has exceeded the defined limit!"
+            echo -e "\n $message_alert"
+            create_alert "$user_email" "$message_alert"
+            break
+        fi
+      
+        if [[ $(is_over_limit "$ram_usage_parameter" "$(get_ram_usage_percentage)") == "TRUE" ]]
+        then
+            local message_alert="Alert: The RAM usage has exceeded the defined limit!"
+            echo -e "\n $message_alert"
+            create_alert "$user_email" "$message_alert"
+            break
+        fi
+
+        if [[ $(is_over_limit "$disk_usage_parameter" "$(get_disk_usage_percentage | tr -d '%')") == "TRUE" ]]
+        then
+            local message_alert="Alert: The Disk usage has exceeded the defined limit!"
+            echo -e "\n $message_alert"
+            create_alert "$user_email" "$message_alert"
+            break
+        fi
+        sleep 1
+    done   
 }
 
 clear_And_Wait(){
@@ -271,16 +388,16 @@ do
 	clear
 	generate_greeting_message
 
-	echo -e "\n	1 -> Hardware Information\n	2 -> Machine Report\n	3 -> Send the report to an email\n	4 -> Exit\n"
-	read -p " - Select an option: " OPTION
+	echo -e "\n     1 -> Hardware Information\n     2 -> Machine Report\n     3 -> Send the report to an email\n     4 -> Configure alert\n     5 -> Exit\n"
+	read -p " - Select an option: " option
 
-	case $OPTION in
+	case $option in
 		1)
 			clear
 			echo -e "\nLoading Hardware Information..."
 			clear_And_Wait
 			hardware_information
-			press_any_key_to_continue
+            press_any_key_to_continue
 			;;
 		2)
 			clear
@@ -292,9 +409,16 @@ do
 			clear
 			echo -e "\nLoading file to send..."
 			clear_And_Wait
-			send_mail
+			send_email $(request_user_email)
 			;;
-		4)
+		
+        4)
+            clear
+            echo -e "\nLoading alert settings..."
+            clear_And_Wait
+            system_monitoring
+            ;;
+        5)
 			clear
 			echo -e "\nExiting..."
 			clear_And_Wait
